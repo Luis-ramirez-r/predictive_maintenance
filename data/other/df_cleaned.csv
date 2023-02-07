@@ -1,0 +1,7 @@
+name,age,weight,admission_date,email_address,country_of_birth,contact_numbers
+Abby,12,32.5,2020-01-01,abby@gmail.com,CA,1-789-456-0123
+Scott,33,47.1,2020-01-15,scott@gmail.com,Canada,1-123-456-7890
+Scott,33,47.1,2020-01-15,scott@gmail.com,Canada,1-123-456-7890
+Scott2,56,55.2,2020-09-01,test@abc.com,,1-456-123-7890
+,,,,,,
+,,,,,,
