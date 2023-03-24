@@ -15,6 +15,31 @@ def seleccionar_ventanas(df,ventana_features,ventana_falla):
         df_ventana = pd.concat([df_ventana,df_temp]) 
     return df_ventana
 
+
+
+def seleccionar_ventanas_sin_fallas(ventana_features,ventana_falla,n):
+
+    df_ventana = pd.DataFrame( )
+    for ix,id  in enumerate( range(1000,len(df)-1000,800)):
+        df_temp = df.iloc[ix:ix+ventana_features].copy()
+        if df_temp['failure'].max()!=0:
+            continue
+        df_temp['id_falla'] = ix
+        df_ventana = pd.concat([df_ventana,df_temp])
+
+
+    if len(df_ventana['id_falla'].unique()) < n:
+        return df_ventana 
+    else:
+        # make a random sample of n ids  
+        ids = np.random.choice(df_ventana['id_falla'].unique(),n,replace=False)
+
+        df_ventana = df_ventana.query('id_falla in @ids')
+        
+        return df_ventana
+    
+    
+
 df = pd.read_parquet(input_file)
 df_ventana = seleccionar_ventanas(df,ventana_features,ventana_falla)
 df_ventana.to_parquet(output_file)
