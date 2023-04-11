@@ -5,8 +5,8 @@ output_ventanas_sin_fallas = '../data/processed/training_data/df_ventanas_sin_fa
 
 
 
-
-ventana_features = 100
-ventana_falla = 50
+ventana_features = 80
+ventana_falla = 30
+n_samples = 1000 
 
 

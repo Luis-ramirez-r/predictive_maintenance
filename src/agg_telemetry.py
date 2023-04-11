@@ -1,49 +1,74 @@
-from config import input_file, output_file,ventana_features,ventana_falla,output_ventanas_sin_fallas,output_ventanas_fallas
+from config import input_file, output_file,ventana_features,ventana_falla,output_ventanas_sin_fallas,output_ventanas_fallas,n_samples
 import pandas as pd
 import numpy as np
 
-def seleccionar_ventanas(df,ventana_features,ventana_falla):
+import pandas as pd
+import numpy as np
 
-    df_ventana = pd.DataFrame( )
-    for id_falla,i_falla in enumerate(df.query('failure != 0').index):
-        shift = np.random.randint(1,ventana_falla+1)
-        df_temp = df.iloc[i_falla -ventana_features + shift: i_falla + shift].copy()
-        df_temp = df_temp.iloc[0:ventana_features-ventana_falla]
-        df_temp['id_falla'] = id_falla
-        df_temp.iloc[ventana_features-ventana_falla-1,6] = df.iloc[i_falla,6]
-        df_temp.iloc[ventana_features-ventana_falla-1,7] = df.iloc[i_falla,7]
-        df_ventana = pd.concat([df_ventana,df_temp]) 
-    return df_ventana
+class VentanaSelector:
+    def __init__(self, df, ventana_features, ventana_falla):
+        self.df = df
+        self.ventana_features = ventana_features
+        self.ventana_falla = ventana_falla
+        self.df_ventana = pd.DataFrame()
+        self.id_falla = 0
+
+    def seleccionar_ventanas(self):
+        for i_falla in self.df.query('failure != 0').index:
+            shift = np.random.randint(1, self.ventana_falla + 1)
+            start_index = i_falla - self.ventana_features + shift
+            end_index = i_falla + shift
+
+            df_temp = self.extract_window(start_index, end_index)
+            if df_temp is not None:
+                df_temp['id_falla'] = self.id_falla
+                self.update_failure_information(df_temp, i_falla)
+                self.df_ventana = pd.concat([self.df_ventana, df_temp])
+                self.id_falla += 1
+
+        return self.df_ventana
+
+    def seleccionar_ventanas_sin_fallas(self, n_samples, start_index=1000, step=800):
+        df_ventana = pd.DataFrame()
+
+        for  ix in range(start_index, len(self.df) - 1000, step):
+            df_temp = self.df.iloc[ix:ix + self.ventana_features].copy()
+            if df_temp['failure'].max() != 0 or len(df_temp['machineID'].unique()) > 1:
+                continue
+            df_temp['id_falla'] = self.id_falla
+            df_ventana = pd.concat([df_ventana, df_temp.iloc[:self.ventana_features - self.ventana_falla]])
+            self.id_falla += 1
+        if len(df_ventana['id_falla'].unique()) < n_samples:
+            return df_ventana
+        else:
+            ids = np.random.choice(df_ventana['id_falla'].unique(), n_samples, replace=False)
+            df_ventana = df_ventana.query('id_falla in @ids')
+            return df_ventana
+
+    def extract_window(self, start_index, end_index):
+        df_temp = self.df.iloc[start_index: end_index].copy()
+        machid = df_temp['machineID'].unique()
+
+        if len(machid) > 1 :
+            return None
+
+        return df_temp.iloc[0:self.ventana_features - self.ventana_falla]
+
+    def update_failure_information(self, df_temp, i_falla):
+        index = self.ventana_features - self.ventana_falla - 1
+        df_temp.iloc[index, 6] = self.df.iloc[i_falla, 6]
+        df_temp.iloc[index, 7] = self.df.iloc[i_falla, 7]
 
 
-
-def seleccionar_ventanas_sin_fallas(df,ventana_features,ventana_falla,n):
-    """
-    
-    """
-    df_ventana = pd.DataFrame( )
-    for ix,id  in enumerate( range(1000,len(df)-1000,800)):
-        df_temp = df.iloc[ix:ix+ventana_features].copy()
-        if df_temp['failure'].max()!=0:
-            continue
-        df_temp['id_falla'] = ix
-        df_ventana = pd.concat([df_ventana,df_temp.iloc[:ventana_features-ventana_falla]])
-
-
-    if len(df_ventana['id_falla'].unique()) < n:
-        return df_ventana 
-    else:
-        # make a random sample of n ids  
-        ids = np.random.choice(df_ventana['id_falla'].unique(),n,replace=False)
-
-        df_ventana = df_ventana.query('id_falla in @ids')
-        
-        return df_ventana
 
 
 df = pd.read_parquet(input_file)
-df_ventana = seleccionar_ventanas(df,ventana_features,ventana_falla)
-df_ventana_sin_fallas = seleccionar_ventanas_sin_fallas(df,ventana_features,ventana_falla,len(df_ventana['id_falla'].unique()) )
+
+
+selector = VentanaSelector(df, ventana_features, ventana_falla)
+df_ventana = selector.seleccionar_ventanas()
+df_ventana_sin_fallas = selector.seleccionar_ventanas_sin_fallas(n_samples)
+
 
 
 df_ventana.to_parquet(output_ventanas_fallas)
@@ -87,8 +112,7 @@ df_ventana_sin_fallas_agg = df_ventana_sin_fallas.groupby('id_falla').agg(mean_v
                                                 std_press = ('pressure', 'std'),
                                                 std_vib = ('vibration', 'std'),
                                                 failure_binary = ('failure_binary', 'max'),
-                                                failure = ('failure', 'max')
-                                                
+                                                failure = ('failure', 'max')                                
 )  
 
 df_resultado = pd.concat([df_ventana_agg,df_ventana_sin_fallas_agg])
